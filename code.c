@@ -96,7 +96,7 @@ void put_LCD_initial_message()
 	EE_lcd_putc('L');
 	EE_lcd_putc('a');
 	EE_lcd_putc('b');
-	EE_lcd_putc('7');
+	EE_lcd_putc('6');
 
 }
 
