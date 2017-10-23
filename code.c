@@ -17,18 +17,8 @@ static unsigned int analog_value;
 static unsigned int kalman_value;
 
 
-// MIPS40 - Run CPU at maximum speed 40MIPS (25ns), oscillator with PLL at 80Mhz
-// MIPS4 - Run CPU at clock speed 4MIPS (250ns), oscillator without PLL at 8Mhz
-#define MIPS40
-
-#ifdef MIPS40
-	// Primary (XT, HS, EC) Oscillator with PLL
-	_FOSCSEL(FNOSC_PRIPLL);
-#endif
-#ifdef MIPS4
-	// Primary (XT, HS, EC) Oscillator without PLL
-	_FOSCSEL(FNOSC_PRI);
-#endif
+// Primary (XT, HS, EC) Oscillator with PLL
+_FOSCSEL(FNOSC_PRIPLL);
 
 // OSC2 Pin Function: OSC2 is Clock Output - Primary Oscillator Mode: XT Crystanl
 _FOSC(OSCIOFNC_ON & POSCMD_XT);
@@ -43,12 +33,7 @@ void T1_program(void)
 {
 	T1CON = 0;		/* Stops the Timer1 and reset control reg	*/
 	TMR1  = 0;		/* Clear contents of the timer register	*/
-#ifdef MIPS40
 	PR1   = 0x9c40;		/* PR1=40000 Load the Period register with the value of 1ms	*/
-#endif
-#ifdef MIPS4
-	PR1   = 0x0fa0;		/* PR1=4000 Load the Period register with the value of 1ms	*/
-#endif
 	IPC0bits.T1IP = 5;	/* Set Timer1 priority to 1		*/
 	IFS0bits.T1IF = 0;	/* Clear the Timer1 interrupt status flag	*/
 	IEC0bits.T1IE = 1;	/* Enable Timer1 interrupts		*/
@@ -176,33 +161,31 @@ void ADC1_init(void)
 	AD1PCFGL = 0xFFFF;		//ADC1 Port Configuration Register Low
 	AD1PCFGH = 0xFFFF;		//ADC1 Port Configuration Register High
 
-	AD1PCFGLbits.PCFG4=0;   //Potentiometer input RB4/AN4
-	AD1PCFGLbits.PCFG5=0;   //Potentiometer input RB4/AN4
+	AD1PCFGLbits.PCFG4=0;   //Potentiometer input RB4/AN4	Temperature Sensor
+	AD1PCFGLbits.PCFG5=0;   //Potentiometer input RB5/AN5   Potentiometer
 
 	AD1CON2bits.VCFG = 0;    /*Converter Voltage Reference Configuration bits
 				(ADRef+=AVdd, ADRef-=AVss)*/
 	AD1CON3bits.ADCS = 63;   /* ADC Conversion Clock Select bits
-			     	*(Tad = Tcy*(ADCS+1) = (1/40000000)*64 = 1.6us)
-				*Tcy=Instruction Cycle Time=40MIPS */
+			     	*(Tad = Tcy*(ADCS+1) = (1/40000000)*64 = 1.6us)   75ns minimum
+			     	*Tcy=Instruction Cycle Time=40MIPS */
 	AD1CON2bits.CHPS = 0;	/* Selects Channels Utilized bits, When AD12B = 1,
 				 * CHPS<1:0> is: U-0, Unimplemented, Read as ‘0’ */
 	AD1CON1bits.SSRC = 7;/*Sample Clock Source Select bits:
 		  	111 = Internal counter ends sampling and starts
 			  	conversion (auto-convert) */
-
-	AD1CON3bits.SAMC = 31;	// Auto Sample Time bits. (31*Tad = 49.6us)
+	AD1CON3bits.SAMC = 0;	// Auto Sample Time bits. (31*Tad = 49.6us)  Maximum Sample Time
 	AD1CON1bits.FORM = 0;	// Data Output Format bits. Integer
 				/* For 12-bit operation:
 				   00 = Integer
 				   (DOUT = 0000 dddd dddd dddd)*/
-
 	AD1CON1bits.AD12B = 1;	/* Operation Mode bit:
 				   0 = 10 bit
 				   1 = 12 bit*/
 	AD1CON1bits.ASAM  = 0;	/* ADC Sample Auto-Start bit:
 			       1 = Sampling begins immediately after last
 			       conversion. SAMP bit is auto-set.
-			   0 = Sampling begins when SAMP bit is set*/
+			   	   0 = Sampling begins when SAMP bit is set*/
 	AD1CHS0bits.CH0NA = 0;	// MUXA  -Ve input selection (Vref-) for CH0.
 
 	AD1CON1bits.ADON  = 1;	// ADC Operating Mode bit. Turn on A/D converter
@@ -216,7 +199,7 @@ void ADC1_init(void)
  ******************************************************************************************/
 static unsigned int value_ant=2048;
 static float Pk_ant = 1.0;
-static float R = 1.0;
+static float R = 10.0;
 static float Q = 0.1;
 
 
@@ -238,11 +221,11 @@ unsigned int kalman_filter(unsigned int raw_value)
 
 TASK(Task1)
 {
-	AD1CHS0 = 5;   			// Channel 5
+	AD1CHS0 = 4;   			// Channel 5
 	AD1CON1bits.SAMP = 1;  	// Start conversion
 	while(!IFS0bits.AD1IF);	// Wait till the EOC
 	IFS0bits.AD1IF = 0;    	// reset ADC interrupt flag
-	analog_value=ADC1BUF0;  	// Display ADC value
+	analog_value=ADC1BUF0;  // Display ADC value
 	kalman_value=kalman_filter(analog_value);
 }
 
@@ -250,12 +233,11 @@ TASK(Task2)
 {
 	/* Blink leds every 1 second */
 	LATAbits.LATA0^=1;
-	put_LCD_initial_message();
 }
 
 TASK(Task3)
 {
-
+	put_LCD_initial_message();
 }
 
 
@@ -279,7 +261,6 @@ TASK(Task4)
 // Main function
 int main(void)
 {
-#ifdef MIPS40
 	/* Clock setup for 40MIPS */
 	/* PLL Configuration */
 	PLLFBD=38; 				// M=40
@@ -288,11 +269,6 @@ int main(void)
 	OSCTUN=0; 				// FRC clock use
 	RCONbits.SWDTEN=0; 		//watchdog timer disable
 	while(OSCCONbits.LOCK!=1); //wait for PLL LOCK
-#endif
-#ifdef MIPS4
-	/* Clock setup for 4MIPS */
-	/* No PLL Configuration */
-#endif
 
 	/* Program Timer 1 to raise interrupts */
 	T1_program();

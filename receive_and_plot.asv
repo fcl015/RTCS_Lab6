@@ -13,7 +13,7 @@ y_max_limit=3.3;
 y_min_limit=0.0;
 plot_both_values=1;
 plot_raw_value_only=0;
-plot_filtered_value_only=0;
+plot_filtered_value_only=1;
 %------------------------------------------------------------------------
 
 number_of_samples=simulation_time/sample_time; %set the number of adquisitions
@@ -59,12 +59,10 @@ for n = 1:number_of_samples             %get data and plot
     filtered_data(n,1)=bitshift(data(6),8) + data(7);
     dummy=data(8);
            
-    if plot_both_values
+    if plot_filtered_value
         plot(my_time,analog_value,'b.-',my_time,filtered_value,'r-');
-    elseif plot_raw_value_only
+    else
         plot(my_time,analog_value,'b.-');
-    elseif plot_filtered_value_only
-        plot(my_time,filtered_value,'r-');
     end
     axis([my_time(1) my_time(1)+simulation_time y_min_limit y_max_limit]);grid on;
     ylabel('Analog Value');xlabel('time (seconds)');
